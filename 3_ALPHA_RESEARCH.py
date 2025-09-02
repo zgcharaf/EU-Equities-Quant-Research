@@ -982,10 +982,6 @@ def run_alpha_from_exports(
         "weights_ic_rolling_IS": w_roll.tail(3) if not w_roll.empty else w_roll,
     }
 
-# =========================
-# 13) (Optional) Visuals for cohort migration — omitted here to keep file compact
-#     You can plug in your existing visualization utilities if desired.
-# =========================
 
 # =========================
 # 14) CLI

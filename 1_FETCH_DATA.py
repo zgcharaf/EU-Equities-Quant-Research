@@ -101,7 +101,6 @@ for k, v in indices_tickers.items():
     else:
         skipped.append(v)
 
-# Replace with filtered dict
 index_data = valid_index_data
 full_index_data.to_csv('index_data.csv')
 full_data_set.to_csv('Prices.csv')
