@@ -46,7 +46,7 @@ python 3_ALPHA_RESEARCH.py
 
 **Chart** — example equity curve comparison:
 
-![Sharpe by strategy](2_0_ALPHA_OUTPUTS/IS_equity_compare.png)
+![Sharpe by strategy](3_0_ALPHA_OUTPUTS/IS_equity_compare.png)
 
 ---
 
