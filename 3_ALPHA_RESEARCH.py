@@ -685,6 +685,63 @@ def plot_ret_hist(ret_s: pd.Series, title: str, outpath: Path):
     plt.hist(ret_s.dropna(), bins=50)
     plt.title(title); plt.xlabel("Daily return"); plt.ylabel("Count")
     plt.tight_layout(); plt.savefig(outpath); plt.close()
+def plot_equity_curves_compare(curves: Dict[str, pd.Series], title: str, outpath: Path):
+    """
+    Plot multiple equity curves on one chart. 'curves' = {label: daily_return_series}.
+    """
+    if not curves:
+        return
+    outpath.parent.mkdir(parents=True, exist_ok=True)
+
+    # Union index so every series aligns (missing days -> 0 return)
+    all_idx = None
+    for s in curves.values():
+        if s is None or s.empty: 
+            continue
+        all_idx = s.index if all_idx is None else all_idx.union(s.index)
+    if all_idx is None:
+        return
+
+    plt.figure(figsize=(10, 4))
+    for name, s in curves.items():
+        if s is None or s.empty:
+            continue
+        ss = s.reindex(all_idx).fillna(0.0)
+        eq = (1.0 + ss).cumprod()
+        plt.plot(eq.index, eq.values, label=name)
+    plt.title(title)
+    plt.xlabel("Date"); plt.ylabel("Equity")
+    plt.grid(True, alpha=0.25)
+    plt.legend(loc="best", frameon=False)
+    plt.tight_layout()
+    plt.savefig(outpath); plt.close()
+
+
+def plot_bar_metric(values: Dict[str, float], title: str, ylabel: str, outpath: Path):
+    """
+    Simple bar chart for a metric like Sharpe. Filters NaNs and sorts descending.
+    """
+    if not values:
+        return
+    outpath.parent.mkdir(parents=True, exist_ok=True)
+    clean = {k: float(v) for k, v in values.items() if v is not None and np.isfinite(v)}
+    if not clean:
+        return
+    labels, vals = zip(*sorted(clean.items(), key=lambda kv: kv[1], reverse=True))
+
+    plt.figure(figsize=(9, 4))
+    ax = plt.gca()
+    ax.bar(labels, vals)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.set_xticklabels(labels, rotation=20, ha="right")
+    ax.grid(True, axis="y", alpha=0.25)
+
+    # Annotate bars
+    for i, v in enumerate(vals):
+        ax.text(i, v, f"{v:.2f}", ha="center", va="bottom", fontsize=9)
+    plt.tight_layout()
+    plt.savefig(outpath); plt.close()
 
 # =========================
 # 10) CV helpers (blocked, out-of-time)
@@ -784,7 +841,7 @@ def run_alpha_from_exports(
     assert_monotone_by_ticker(df)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.sort_values(["ticker","date"])
-
+    
     # Optional: enforce observed-history monthly universe (approximate delistings)
     if loaded.get("universe", None) is not None and not loaded["universe"].empty:
         try:
@@ -862,9 +919,13 @@ def run_alpha_from_exports(
 
     # ===== Portfolios (IS diagnostic only) =====
     RET_COL = "ret_effective"
+    is_daily: Dict[str, pd.Series] = {}
     for sname in ["score_ew","score_icw","score_ridge","score_icw_roll"]:
         if sname not in df.columns: 
             continue
+        
+        
+
         w_lo = build_longonly_weights(df, sname, topq=top_quantile, rebalance=rebalance)
         r_lo = realize_portfolio_returns(df, w_lo, ret_col=RET_COL, tc_bps=tc_bps)
         r_lo.to_csv(outdir / f"daily_returns_IS_{sname}_longonly.csv")
@@ -872,6 +933,21 @@ def run_alpha_from_exports(
                           outdir / f"equity_IS_{sname}_longonly.png")
         plot_drawdown(r_lo, f"(IS) {sname} long-only", outdir / f"drawdown_IS_{sname}_longonly.png")
         plot_ret_hist(r_lo, f"(IS) {sname} daily returns (long-only)", outdir / f"ret_hist_IS_{sname}_longonly.png")
+        # ----- IS summary table + comparison charts -----
+        if not r_lo.empty:
+            is_daily[sname] = r_lo
+    if is_daily:
+        is_rows = []
+        for sname, series in is_daily.items():
+            summ = perf_summary(series)
+            is_rows.append({"strategy": sname, **summ})
+        is_df = pd.DataFrame(is_rows)[["strategy","ann_ret","ann_vol","sharpe","max_dd"]]
+        is_df.to_csv(outdir / "IS_summary_overall.csv", index=False)
+
+        # Charts
+        plot_equity_curves_compare(is_daily, "(IS) Strategies — Equity Curves", outdir / "IS_equity_compare.png")
+        plot_bar_metric({r["strategy"]: r["sharpe"] for _, r in is_df.iterrows()},
+                        "(IS) Sharpe by Strategy", "Sharpe", outdir / "IS_sharpe.png")
 
     # ===== Time-based Cross-Validation (OOS) =====
     oos_results = {}
@@ -962,6 +1038,19 @@ def run_alpha_from_exports(
                         overall_rows.append({**perf_summary(oos_results[sname]), "strategy": sname})
                 if overall_rows:
                     pd.DataFrame(overall_rows)[["strategy","ann_ret","ann_vol","sharpe","max_dd"]].to_csv(outdir / "cv_oos_summary_overall.csv", index=False)
+                            # OOS charts + compact Sharpe bar
+                if oos_results:
+                    plot_equity_curves_compare(oos_results, "(OOS CV) Strategies — Equity Curves",
+                                               outdir / "cv_equity_compare.png")
+
+                if overall_rows:
+                    overall_df = pd.DataFrame(overall_rows)
+                    # Ensure same column ordering if file already written above
+                    overall_df[["strategy","ann_ret","ann_vol","sharpe","max_dd"]].to_csv(
+                        outdir / "cv_oos_summary_overall.csv", index=False
+                    )
+                    plot_bar_metric({r["strategy"]: r["sharpe"] for _, r in overall_df.iterrows()},
+                                    "(OOS CV) Sharpe by Strategy", "Sharpe", outdir / "cv_oos_sharpe.png")
 
     logging.info("Saved outputs to %s", outdir.resolve())
 
