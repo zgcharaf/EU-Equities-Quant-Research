@@ -3,8 +3,11 @@
 
 # EU Equities — Factor Research & Simple Long-Only Backtests
 
-Small, reproducible factor-research sandbox for EU equities (STOXX-like universe).  
-It fetches data, engineers factors, and runs a few simple long-only scoring strategies.
+In this project, we build an alpha research pipeline, starting with factor construction, point-in-time data, embargoed forward returns, and strict leakage checks.
+We neutralize and z-score factors (country/supersector + beta/size/price controls), then compute monthly rank-IC with Newey–West stats and BH/FDR filtering.
+We form composites (equal-weight, IC-weighted static/rolling, ridge) and run walk-forward selection to get out-of-sample weights.
+For a €3M small book rebalanced quarterly, budget→integer share sizing, ADV participation caps, and a beta-neutral LS diagnostics.
+Execution models include staggered fills, commissions/slippage/impact; outputs cover performance, turnover, rank-migration, and IC visuals.
 
 ---
 
@@ -22,15 +25,24 @@ python 3_ALPHA_RESEARCH.py
 ````
 
 ---
+## Some Universe Beta stats 
+**Chart** — Betas by Sector:
+
+![Beta by Sector](2_0_EDA/beta_by_sector.png)
+**Chart** — Betas by country:
+
+![Beta by country](2_0_EDA/beta_by_country.png)
+
 
 ## Results (monthly rebalance, top-quintile long-only)
+> Universe: EU large/mid; Sample: 2023-01 → 2025-06; Costs: 5 bps per 100% turnover; .
 
 | strategy         | ann\_ret | ann\_vol | sharpe | max\_dd |
 | ---------------- | -------: | -------: | -----: | ------: |
-| score\_ew        | 0.124233 | 0.053421 |  2.436 | -0.0467 |
-| score\_icw       | 0.136044 | 0.052957 |  2.436 | -0.0559 |
-| score\_ridge     | 0.123583 | 0.053505 |  2.205 | -0.0451 |
-| score\_icw\_roll | 0.113112 | 0.052621 |  2.063 | -0.0469 |
+| score\_ew        |    12.4% |     5.3% |   2.44 |   -4.7% |
+| score\_icw       |    13.6% |     5.3% |   2.44 |   -5.6% |
+| score\_ridge     |    12.4% |     5.4% |   2.21 |   -4.5% |
+| score\_icw\_roll |    11.3% |     5.3% |   2.06 |   -4.7% |
 
 **Chart** — example equity curve comparison:
 

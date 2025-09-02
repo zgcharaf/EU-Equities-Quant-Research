@@ -25,7 +25,7 @@ logging.basicConfig(
 plt.rcParams["figure.dpi"] = 120
 
 DEFAULT_INDIR  = Path("1_0_DATA_ENG")
-DEFAULT_OUTDIR = Path("2_0_ALPHA_OUTPUTS")
+DEFAULT_OUTDIR = Path("3_0_ALPHA_OUTPUTS")
 
 # =========================
 # 1) Utilities & loading
