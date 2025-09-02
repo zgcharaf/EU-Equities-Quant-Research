@@ -1,4 +1,4 @@
-I reviewed your README draft — it’s already solid 👌. Below is a **harmonized version** with consistent formatting, clearer sectioning, and removal of small incoherences (like mixed headings and dangling `##`).
+
 
 ````markdown
 # EU Equities — Factor Research & Simple Long-Only Backtests
