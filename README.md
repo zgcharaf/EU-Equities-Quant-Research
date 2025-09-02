@@ -1,6 +1,6 @@
 
 
-````markdown
+
 # EU Equities — Factor Research & Simple Long-Only Backtests
 
 Small, reproducible factor-research sandbox for EU equities (STOXX-like universe).  
@@ -137,9 +137,3 @@ python 3_ALPHA_RESEARCH.py \
     --cv_gap_months 1
 ```
 
-`````
-
----
-
-
-`````
