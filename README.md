@@ -1,151 +1,86 @@
+# European Equity Factor Research
 
+A Python research pipeline for constructing equity factors, studying cross-sectional information coefficients, and comparing simple long-only portfolio scores.
 
+**Start with:** [factor engineering](2_DATA_ENG.py) · [alpha research](4_ALPHA_RESEARCH.py) · [saved diagnostic charts](3_0_ALPHA_OUTPUTS).
 
-# EU Equities — Factor Research & Simple Long-Only Backtests
+## Research workflow
 
-In this project, we build an alpha research pipeline, starting with factor construction, point-in-time data, embargoed forward returns, and strict leakage checks.
-We neutralize and z-score factors (country/supersector + beta/size/price controls), then compute monthly rank-IC with Newey–West stats and BH/FDR filtering.
-We form composites (equal-weight, IC-weighted static/rolling, ridge) and run walk-forward selection to get out-of-sample weights.
-For a €3M small book rebalanced quarterly, budget→integer share sizing, ADV participation caps, and a beta-neutral LS diagnostics.
-Execution models include staggered fills, commissions/slippage/impact; outputs cover performance, turnover, rank-migration, and IC visuals.
+| Stage | Entry point | Purpose |
+| --- | --- | --- |
+| Data collection | [1_FETCH_DATA.py](1_FETCH_DATA.py) | Download adjusted stock and country-index prices using yfinance. |
+| Factor engineering | [2_DATA_ENG.py](2_DATA_ENG.py) | Build momentum, reversal, volatility, liquidity, and beta features; export panels and coverage diagnostics. |
+| Exploration | [3_EDA.py](3_EDA.py) | Explore the factor data and universe. |
+| Alpha research | [4_ALPHA_RESEARCH.py](4_ALPHA_RESEARCH.py) | Neutralize and standardize signals, estimate ICs, construct scores, and produce portfolio diagnostics. |
 
----
+The research script includes Newey–West statistics, Benjamini–Hochberg filtering, equal-weight and IC-weighted scores, ridge-based scores, and an optional time-based cross-validation path.
 
-## Quick start
+## Reproduction prerequisites
+
+The repository is not yet self-contained. Before running the pipeline, supply these input tables in the repository root:
+
+| Input | Required columns used by the code |
+| --- | --- |
+| `constituents.csv` | `ticker`, `name` |
+| `market_indices.csv` | `Country`, `ticker` |
+| `stoxx_europe_600_v2.csv` | `Ticker_YF`, `Supersector`, `Country` |
+
+These three tables are not committed. Ticker and country mappings must agree across them. The fetch script creates `Prices.csv` and `index_data.csv`.
+
+[requirements.txt](requirements.txt) records an existing environment, including the Windows-specific `pywin32` package. Installation needs adaptation on other operating systems; a portable environment has not been verified.
+
+## Run sequence
+
+After preparing the data inputs and Python environment, run from the repository root:
 
 ```bash
-# 1) Fetch market & index data
 python 1_FETCH_DATA.py
-
-# 2) Build factors (writes DATA_ENG outputs)
 python 2_DATA_ENG.py
-
-# 3) Run alpha research & backtests (writes ALPHA outputs)
-python 3_ALPHA_RESEARCH.py
-````
-
----
-## Some Universe Beta stats 
-**Chart** — Betas by Sector:
-
-![Beta by Sector](2_0_EDA/beta_by_sector.png)
-**Chart** — Betas by country:
-
-![Beta by country](2_0_EDA/beta_by_country.png)
-
-
-## Results (monthly rebalance, top-quintile long-only)
-> Universe: EU large/mid; Sample: 2023-01 → 2025-06; Costs: 5 bps per 100% turnover; .
-
-| strategy         | ann\_ret | ann\_vol | sharpe | max\_dd |
-| ---------------- | -------: | -------: | -----: | ------: |
-| score\_ew        |    12.4% |     5.3% |   2.44 |   -4.7% |
-| score\_icw       |    13.6% |     5.3% |   2.44 |   -5.6% |
-| score\_ridge     |    12.4% |     5.4% |   2.21 |   -4.5% |
-| score\_icw\_roll |    11.3% |     5.3% |   2.06 |   -4.7% |
-
-**Chart** — example equity curve comparison:
-
-![Sharpe by strategy](3_0_ALPHA_OUTPUTS/IS_equity_compare.png)
-
----
-
-## Factors used
-
-```
-adv_eur_20
-amihud_20d
-beta_252
-beta_60
-country_rel_mom_6_1
-hi52_prox
-liq_proxy
-max5_21d
-mom_12_1
-mom_6_1
-ret_stock
-rev_5d
-sector_rel_mom_6_1
-size_proxy
-vol_252d
-vol_60d
-zero_ret_20d
+python 3_EDA.py
+python 4_ALPHA_RESEARCH.py
 ```
 
-> Some candidates may be discarded at build-time for coverage/quality.
-> Document the discarded list if needed.
-
----
-
-## Data quality & diagnostics
-
-* **Factor completeness:** `factor_completeness.csv`
-  (columns: `factor, non_null, total_rows, pct_non_null, avg_names_per_date, first_date, last_date`)
-* **Factor correlations (latest EoM, z-scored):** `factor_correlations.csv`
-
----
-
-## Repo layout (minimal)
-
-* `1_FETCH_DATA.py` — fetch prices & country indices (e.g., Yahoo), writes raw inputs.
-* `2_DATA_ENG.py` — engineer factor panel & diagnostics under `DATA_ENG/`.
-* `3_ALPHA_RESEARCH.py` — z-scores, neutralization, scoring, and backtests under `ALPHA_OUTPUTS/`.
-
----
-
-## Notes
-
-* **Rebalance**: monthly (EoM), long-only top 20% by score, equal weight.
-* **Returns**: daily; excess vs. country index when available; 1-day embargo.
-* **Costs/slippage**: configurable in `3_ALPHA_RESEARCH.py`.
-
----
-
-## Command-line arguments (3\_ALPHA\_RESEARCH.py)
-
-| Argument                | Type     | Default                                           | Choices               | Description                                                   |
-| ----------------------- | -------- | ------------------------------------------------- | --------------------- | ------------------------------------------------------------- |
-| `--indir`               | Path     | `DEFAULT_INDIR`                                   | –                     | Input directory with DATA\_ENG exports                        |
-| `--outdir`              | Path     | `DEFAULT_OUTDIR`                                  | –                     | Output directory for alpha artifacts                          |
-| `--horizons`            | int list | `[1, 5, 21, 40]`                                  | –                     | Forward return horizons (days)                                |
-| `--ic_method`           | str      | `"spearman"`                                      | `pearson`, `spearman` | Information Coefficient (IC) method                           |
-| `--neutralize`          | list     | `[country, supersector, size_bucket, liq_bucket]` | –                     | Neutralization buckets (empty list disables)                  |
-| `--robust_z`            | flag     | `False`                                           | –                     | Use robust median/MAD z-scores                                |
-| `--rebalance`           | str      | `"M"`                                             | `M`, `W`, `D`         | Rebalance frequency (month, week, day)                        |
-| `--topq`                | float    | `0.2`                                             | –                     | Top-quantile for long-only tilts (e.g., 0.2 = top 20%)        |
-| `--tc_bps`              | float    | `5.0`                                             | –                     | Transaction cost per 100% turnover, in bps                    |
-| `--ic_roll_m`           | int      | `18`                                              | –                     | Rolling months for IC-weight lookback                         |
-| `--ic_shrink`           | float    | `0.6`                                             | 0–1                   | Shrink weights toward equal-weight                            |
-| `--ic_max_abs_w`        | float    | `0.40`                                            | –                     | Max absolute weight per factor after normalization & clipping |
-| `--ic_min_months`       | int      | `10`                                              | –                     | Minimum sample months required to compute IC-weight           |
-| `--cv_enable`           | flag     | `False`                                           | –                     | Enable time-based cross-validation (OOS)                      |
-| `--cv_train_months`     | int      | `36`                                              | –                     | Training window size (months)                                 |
-| `--cv_test_months`      | int      | `6`                                               | –                     | Testing window size (months)                                  |
-| `--cv_gap_months`       | int      | `1`                                               | –                     | Gap between train and test windows (months)                   |
-| `--cv_min_train_months` | int      | `24`                                              | –                     | Minimum months required in training to form a CV fold         |
-
----
-
-## Example runs
-
-### Run with defaults
+The default alpha input directory is `1_0_DATA_ENG`; its output directory is `3_0_ALPHA_OUTPUTS`. Inspect the available options with:
 
 ```bash
-python 3_ALPHA_RESEARCH.py
+python 4_ALPHA_RESEARCH.py --help
 ```
 
-### Custom run
+The optional cross-validation path can be requested with:
 
 ```bash
-python 3_ALPHA_RESEARCH.py \
+python 4_ALPHA_RESEARCH.py \
     --indir 1_0_DATA_ENG \
-    --outdir 2_0_ALPHA_OUTPUTS \
+    --outdir 3_0_ALPHA_OUTPUTS \
     --rebalance M \
-    --topq 0.1 \
-    --tc_bps 10 \
+    --topq 0.2 \
+    --tc_bps 5 \
     --cv_enable \
     --cv_train_months 36 \
     --cv_test_months 6 \
     --cv_gap_months 1
 ```
 
+The fetch script currently requests roughly three years of history. A 36-month training window plus gap and test period requires more usable history, especially after factor warm-up. Check whether valid folds were formed; the script logs a warning when none can be created.
+
+## Saved diagnostics
+
+![Beta by sector](2_0_EDA/beta_by_sector.png)
+
+![In-sample equity-curve comparison](3_0_ALPHA_OUTPUTS/IS_equity_compare.png)
+
+The committed `IS_*` charts are **in-sample diagnostics**. They are not verified out-of-sample performance. The script generates separate `cv_*` outputs when its optional cross-validation path produces results; those outputs are not present in the inspected repository.
+
+## Interpretation and limitations
+
+- The run metadata describes a data-light setup without explicit delisting, corporate-action, earnings, or capitalization datasets. An observed-history universe is not a historical constituent database; survivorship effects remain possible.
+- Return winsorization in `add_effective_return` uses quantiles from the supplied full panel before cross-validation. This requires revision before claiming fully independent out-of-sample evaluation.
+- Returns prefer country-index excess returns where available and otherwise use raw returns. Interpret portfolio curves with that mixed return definition in mind.
+- Fields labelled `price_eur` and `ret_1d_eur` do not by themselves establish currency conversion: the fetch script downloads Yahoo prices without an explicit FX step.
+- The default cost setting is 5 basis points per unit turnover. It is a simplified research assumption.
+
+A reproducible next iteration should supply documented universe mappings, freeze the data snapshot and environment, isolate preprocessing within training folds, and report benchmark-relative out-of-sample results with cost sensitivity.
+
+## License
+
+See [LICENSE](LICENSE).
